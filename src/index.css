@@ -1,0 +1,96 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@500;700;800&display=swap');
+
+:root {
+  --bg-base: #0a0a0a;
+  --bg-panel: #101010;
+  --bg-panel-alt: #141414;
+  --bg-soft: #171717;
+  --border-strong: #343434;
+  --border-soft: #272727;
+  --text-primary: #f5f5f5;
+  --text-muted: #8d8d8d;
+  --accent: #f59e0b;
+  --accent-soft: rgba(245, 158, 11, 0.18);
+
+  --status-confirmed-bg: rgba(34, 197, 94, 0.16);
+  --status-confirmed-text: #86efac;
+  --status-pending-bg: rgba(245, 158, 11, 0.2);
+  --status-pending-text: #fcd34d;
+  --status-failed-bg: rgba(239, 68, 68, 0.2);
+  --status-failed-text: #fca5a5;
+
+  --font-heading: 'Syne', 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+body.theme-carbon {
+  --bg-base: #060606;
+  --bg-panel: #0d0d0d;
+  --bg-panel-alt: #111111;
+  --bg-soft: #161616;
+  --border-strong: #2f2f2f;
+  --border-soft: #232323;
+  --text-primary: #f1f1f1;
+  --text-muted: #7f7f7f;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  background-color: var(--bg-base);
+  background-image:
+    linear-gradient(rgba(245, 158, 11, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(245, 158, 11, 0.05) 1px, transparent 1px),
+    radial-gradient(rgba(245, 158, 11, 0.11) 0.8px, transparent 0.8px);
+  background-size:
+    36px 36px,
+    36px 36px,
+    12px 12px;
+  background-position:
+    0 0,
+    0 0,
+    -6px -6px;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-heading);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
