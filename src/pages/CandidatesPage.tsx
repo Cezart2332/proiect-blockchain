@@ -1,58 +1,14 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import EmptyState from '../components/EmptyState.tsx'
 import SkeletonList from '../components/SkeletonList.tsx'
-import { fetchCandidates, getReadContract, parseContractError } from '../hooks/useContract.js'
-import type { Candidate } from '../types'
+import { useElection } from '../context/ElectionContext'
 
 export default function CandidatesPage() {
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [candidates, setCandidates] = useState<Candidate[]>([])
+  const { loading, error, currentState, candidates, totalVotes, winner } = useElection()
 
-  useEffect(() => {
-    let mounted = true
-
-    const loadCandidates = async () => {
-      setLoading(true)
-      setError(null)
-
-      try {
-        const contract = getReadContract()
-        const fetchedCandidates = await fetchCandidates(contract)
-
-        if (!mounted) {
-          return
-        }
-
-        setCandidates(fetchedCandidates)
-      } catch (fetchError) {
-        if (!mounted) {
-          return
-        }
-
-        setError(parseContractError(fetchError))
-      } finally {
-        if (mounted) {
-          setLoading(false)
-        }
-      }
-    }
-
-    void loadCandidates()
-
-    return () => {
-      mounted = false
-    }
-  }, [])
-
-  const totalVotes = useMemo(
-    () => candidates.reduce((total, candidate) => total + candidate.voteCount, 0),
-    [candidates],
-  )
-
-  const leadingVotes = useMemo(
-    () => candidates.reduce((max, candidate) => Math.max(max, candidate.voteCount), 0),
-    [candidates],
+  const votesDenominator = useMemo(
+    () => (currentState === 'PREPARATION' ? 0 : totalVotes),
+    [currentState, totalVotes],
   )
 
   return (
@@ -96,18 +52,30 @@ export default function CandidatesPage() {
               </thead>
               <tbody>
                 {candidates.map((candidate) => {
+                  const displayedVotes =
+                    currentState === 'PREPARATION' ? 0 : candidate.voteCount
+
                   const percentage =
-                    totalVotes === 0 ? 0 : (candidate.voteCount / totalVotes) * 100
-                  const isWinner = candidate.voteCount === leadingVotes
+                    votesDenominator === 0 ? 0 : (displayedVotes / votesDenominator) * 100
+
+                  const isWinner =
+                    currentState === 'CLOSED' &&
+                    winner !== null &&
+                    winner.name === candidate.name &&
+                    winner.voteCount === candidate.voteCount
 
                   return (
-                    <tr key={candidate.id}>
+                    <tr key={candidate.id} className={isWinner ? 'results-row-winner' : ''}>
                       <td className="mono-value">#{candidate.id}</td>
                       <td>{candidate.name}</td>
-                      <td className="mono-value">{candidate.voteCount}</td>
+                      <td className="mono-value">
+                        {currentState === 'PREPARATION'
+                          ? '0 votes - election not started'
+                          : displayedVotes}
+                      </td>
                       <td className="mono-value">{percentage.toFixed(1)}%</td>
                       <td>
-                        {isWinner ? <span className="winner-badge">Winner</span> : '-'}
+                        {isWinner ? <span className="winner-badge">🏆 Winner</span> : '-'}
                       </td>
                     </tr>
                   )

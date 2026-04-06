@@ -4,6 +4,8 @@ export interface Candidate {
   voteCount: number
 }
 
+export type ElectionState = 'PREPARATION' | 'OPEN' | 'CLOSED'
+
 export interface CurrentUser {
   address: string
   isOwner: boolean

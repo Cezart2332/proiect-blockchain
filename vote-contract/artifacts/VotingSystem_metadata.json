@@ -31,6 +31,25 @@
 			},
 			{
 				"anonymous": false,
+				"inputs": [],
+				"name": "ElectionReset",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": false,
+						"internalType": "enum VotingSystem.ElectionState",
+						"name": "newState",
+						"type": "uint8"
+					}
+				],
+				"name": "StateChanged",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
 				"inputs": [
 					{
 						"indexed": true,
@@ -53,12 +72,12 @@
 				"inputs": [
 					{
 						"indexed": false,
-						"internalType": "bool",
-						"name": "isOpen",
-						"type": "bool"
+						"internalType": "address",
+						"name": "voter",
+						"type": "address"
 					}
 				],
-				"name": "VotingStatusChanged",
+				"name": "VoterRegistered",
 				"type": "event"
 			},
 			{
@@ -117,6 +136,13 @@
 				"type": "function"
 			},
 			{
+				"inputs": [],
+				"name": "closeElection",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
 				"inputs": [
 					{
 						"internalType": "uint256",
@@ -134,6 +160,45 @@
 					{
 						"internalType": "uint256",
 						"name": "voteCount",
+						"type": "uint256"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "getCurrentState",
+				"outputs": [
+					{
+						"internalType": "string",
+						"name": "",
+						"type": "string"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "getTotalVotes",
+				"outputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "getVotersCount",
+				"outputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
 						"type": "uint256"
 					}
 				],
@@ -175,6 +240,13 @@
 					}
 				],
 				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "openElection",
+				"outputs": [],
+				"stateMutability": "nonpayable",
 				"type": "function"
 			},
 			{
@@ -223,16 +295,23 @@
 				"type": "function"
 			},
 			{
-				"inputs": [
-					{
-						"internalType": "bool",
-						"name": "_status",
-						"type": "bool"
-					}
-				],
-				"name": "setVotingStatus",
+				"inputs": [],
+				"name": "resetElection",
 				"outputs": [],
 				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "state",
+				"outputs": [
+					{
+						"internalType": "enum VotingSystem.ElectionState",
+						"name": "",
+						"type": "uint8"
+					}
+				],
+				"stateMutability": "view",
 				"type": "function"
 			},
 			{
@@ -249,13 +328,19 @@
 				"type": "function"
 			},
 			{
-				"inputs": [],
-				"name": "votingOpen",
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"name": "votersList",
 				"outputs": [
 					{
-						"internalType": "bool",
+						"internalType": "address",
 						"name": "",
-						"type": "bool"
+						"type": "address"
 					}
 				],
 				"stateMutability": "view",
@@ -290,11 +375,11 @@
 	},
 	"sources": {
 		"vote_contract.sol": {
-			"keccak256": "0xf577c15b475342900851b0281b575ff1064654192e9ff3a92977b8767a1de037",
+			"keccak256": "0x9e1d6c59f30c521af6e30632daf4cc7f1ecb7af671e1758e13c03b03c742d637",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://a29b667de616255fb78f4d0343c3db0f434b60444a08d6a12e1110fd3bf406ba",
-				"dweb:/ipfs/QmR3jRaELQEgLTZRR27ECfrvBSNdduckQEwk4MFGX1B4Ea"
+				"bzz-raw://1138183e27e011c1ec45b725059b6a56edbb31402368ef8a1a544cbb31aa8e71",
+				"dweb:/ipfs/QmcDGiB1YjewQRPv9xeNNnhCDHEgCWSHRFFnQe7MkyQfGV"
 			]
 		}
 	},

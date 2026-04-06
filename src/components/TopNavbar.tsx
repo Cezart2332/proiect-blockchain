@@ -1,65 +1,25 @@
-import { useEffect, useState } from 'react'
-import {
-  checkNetwork,
-  connectWallet,
-  getConnectedAddress,
-  getReadContract,
-  isMetaMaskInstalled,
-  isSepoliaNetwork,
-} from '../hooks/useContract.js'
+import { useState } from 'react'
+import { useElection } from '../context/ElectionContext'
 import { shortenAddress } from '../utils/format'
-import VoteStatus from './VoteStatus.tsx'
+import ElectionStateBadge from './ElectionStateBadge.tsx'
 
 export default function TopNavbar() {
-  const [walletAddress, setWalletAddress] = useState<string | null>(null)
-  const [isVotingOpen, setIsVotingOpen] = useState(false)
-  const [hasMetaMask, setHasMetaMask] = useState(true)
-  const [wrongNetwork, setWrongNetwork] = useState(false)
+  const {
+    currentState,
+    connectedAddress,
+    hasMetaMask,
+    wrongNetwork,
+    connectWalletAction,
+    switchNetworkAction,
+  } = useElection()
+
   const [busy, setBusy] = useState(false)
-
-  useEffect(() => {
-    const loadNavbarData = async () => {
-      try {
-        const contract = getReadContract()
-        const votingState = await contract.votingOpen()
-        setIsVotingOpen(Boolean(votingState))
-      } catch {
-        setIsVotingOpen(false)
-      }
-
-      const hasWallet = isMetaMaskInstalled()
-      setHasMetaMask(hasWallet)
-
-      if (!hasWallet) {
-        return
-      }
-
-      try {
-        const [address, onSepolia] = await Promise.all([
-          getConnectedAddress(),
-          isSepoliaNetwork(),
-        ])
-
-        setWalletAddress(address)
-        setWrongNetwork(!onSepolia)
-      } catch {
-        setWalletAddress(null)
-        setWrongNetwork(false)
-      }
-    }
-
-    void loadNavbarData()
-  }, [])
 
   const handleConnect = async () => {
     setBusy(true)
 
     try {
-      const address = await connectWallet()
-      setWalletAddress(address)
-      setWrongNetwork(!(await isSepoliaNetwork()))
-    } catch {
-      setWalletAddress(null)
+      await connectWalletAction()
     } finally {
       setBusy(false)
     }
@@ -69,10 +29,7 @@ export default function TopNavbar() {
     setBusy(true)
 
     try {
-      const switched = await checkNetwork()
-      setWrongNetwork(!switched)
-    } catch {
-      setWrongNetwork(true)
+      await switchNetworkAction()
     } finally {
       setBusy(false)
     }
@@ -91,12 +48,12 @@ export default function TopNavbar() {
       </div>
 
       <div className="top-navbar-meta">
-        <VoteStatus isOpen={isVotingOpen} compact />
+        <ElectionStateBadge state={currentState} compact />
 
         {!hasMetaMask ? (
           <span className="wallet-pill mono-value">Please install MetaMask</span>
-        ) : walletAddress ? (
-          <span className="wallet-pill mono-value">{shortenAddress(walletAddress)}</span>
+        ) : connectedAddress ? (
+          <span className="wallet-pill mono-value">{shortenAddress(connectedAddress)}</span>
         ) : (
           <button
             className="top-wallet-button mono-value"

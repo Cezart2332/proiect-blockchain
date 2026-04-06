@@ -85,11 +85,11 @@
   opacity: 0.6;
 }
 
-.vote-status {
+.election-state-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid transparent;
+  border: 1px solid var(--border-strong);
   background: var(--bg-panel-alt);
   min-height: 2rem;
   padding: 0 0.72rem;
@@ -97,17 +97,32 @@
   letter-spacing: 0.1em;
   font-size: 0.69rem;
   font-family: var(--font-mono);
+  gap: 0.35rem;
 }
 
-.vote-status.is-open {
+.election-state-badge.is-preparation {
+  border-color: rgba(59, 130, 246, 0.55);
+  color: #93c5fd;
+}
+
+.election-state-badge.is-open {
   border-color: rgba(74, 222, 128, 0.55);
   color: #4ade80;
+}
+
+.election-state-badge.is-closed {
+  border-color: rgba(239, 68, 68, 0.6);
+  color: #f87171;
+}
+
+.election-state-badge.is-pulsing {
   animation: votePulse 1.5s ease-in-out infinite;
 }
 
-.vote-status.is-closed {
-  border-color: rgba(239, 68, 68, 0.6);
-  color: #f87171;
+.election-state-badge.is-compact {
+  min-height: 1.86rem;
+  padding: 0 0.62rem;
+  font-size: 0.66rem;
 }
 
 .workspace-shell {
@@ -297,6 +312,17 @@
   flex-shrink: 0;
 }
 
+.inline-button-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+}
+
+.inline-spinner {
+  width: 0.8rem;
+  height: 0.8rem;
+}
+
 .tx-copy-warning {
   color: #fcd34d;
 }
@@ -472,6 +498,14 @@
   padding-top: 0.65rem;
 }
 
+.vote-locked-card {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  border-color: rgba(74, 222, 128, 0.5);
+  background: rgba(74, 222, 128, 0.08);
+}
+
 .vote-selection-display {
   font-size: 0.83rem;
   margin-top: 0.18rem;
@@ -518,6 +552,14 @@
   border-bottom: none;
 }
 
+.results-row-winner {
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.results-row-winner td {
+  border-bottom-color: rgba(245, 158, 11, 0.38);
+}
+
 .winner-badge {
   display: inline-flex;
   align-items: center;
@@ -531,6 +573,15 @@
   letter-spacing: 0.08em;
 }
 
+.winner-summary-card {
+  border-color: rgba(245, 158, 11, 0.58);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.winner-summary-name {
+  font-size: 1.02rem;
+}
+
 .admin-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -541,6 +592,23 @@
   display: grid;
   gap: 0.58rem;
   align-content: start;
+}
+
+.admin-state-panel {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.admin-inline-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.66rem;
+}
+
+.admin-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.62rem;
 }
 
 .admin-card-heading {
@@ -641,6 +709,50 @@
   opacity: 0.5;
   border-color: var(--border-strong);
   background: rgba(245, 245, 245, 0.02);
+}
+
+.terminal-button-danger {
+  border-color: rgba(239, 68, 68, 0.62);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.terminal-button-danger:hover {
+  background: rgba(239, 68, 68, 0.18);
+}
+
+.terminal-button-danger:disabled {
+  border-color: var(--border-strong);
+  background: rgba(245, 245, 245, 0.02);
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(10, 10, 10, 0.78);
+}
+
+.reset-modal {
+  width: min(470px, 100%);
+  border: 1px solid rgba(239, 68, 68, 0.58);
+  background: #0f0f0f;
+  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.48);
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.95rem;
+}
+
+.reset-modal h2 {
+  font-size: 0.98rem;
+}
+
+.modal-action-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.58rem;
 }
 
 .empty-state {
@@ -830,7 +942,8 @@
 
   .stats-grid,
   .candidate-grid,
-  .admin-grid {
+  .admin-grid,
+  .admin-inline-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -847,7 +960,8 @@
 
   .stats-grid,
   .candidate-grid,
-  .admin-grid {
+  .admin-grid,
+  .admin-inline-stats {
     grid-template-columns: 1fr;
   }
 
@@ -874,5 +988,13 @@
   .vote-action-row {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .modal-action-row {
+    flex-direction: column;
+  }
+
+  .modal-action-row .terminal-button {
+    width: 100%;
   }
 }

@@ -73,3 +73,28 @@ export default defineConfig([
   },
 ])
 ```
+
+## Deploy To GitHub Pages
+
+This repository is configured to deploy automatically with GitHub Actions.
+
+### 1. Enable Pages in repository settings
+
+1. Go to Settings > Pages.
+2. Set Source to GitHub Actions.
+
+### 2. Push to main or master
+
+The workflow [.github/workflows/deploy-pages.yml](.github/workflows/deploy-pages.yml) runs on push to main/master and publishes the dist folder to GitHub Pages.
+
+### 3. Access the site
+
+Your app will be available at:
+
+https://<your-github-username>.github.io/<repo-name>/
+
+Notes:
+
+- Vite base path is injected at build time with VITE_BASE_PATH for GitHub Pages subpath hosting.
+- BrowserRouter uses import.meta.env.BASE_URL as basename.
+- A 404.html fallback is generated from index.html during CI so SPA routes can be refreshed directly.

@@ -1,187 +1,137 @@
 import { isAddress } from 'ethers'
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
 import AdminGuard from '../components/AdminGuard.tsx'
-import VoteStatus from '../components/VoteStatus.tsx'
-import {
-  checkNetwork,
-  connectWallet,
-  getConnectedAddress,
-  getContract,
-  getReadContract,
-  isMetaMaskInstalled,
-  isSepoliaNetwork,
-  parseContractError,
-} from '../hooks/useContract.js'
+import ElectionStateBadge from '../components/ElectionStateBadge.tsx'
+import EmptyState from '../components/EmptyState.tsx'
+import { useElection } from '../context/ElectionContext'
 import { shortenAddress } from '../utils/format'
 
-interface ToastState {
-  type: 'success' | 'error'
-  message: string
-}
-
-type TransactionPhase = 'idle' | 'wallet' | 'mining'
-
 export default function AdminPage() {
+  const navigate = useNavigate()
+  const {
+    loading,
+    error,
+    currentState,
+    candidates,
+    totalCandidates,
+    totalVotes,
+    totalVoters,
+    connectedAddress,
+    isOwner,
+    hasMetaMask,
+    wrongNetwork,
+    winner,
+    txStep,
+    txPending,
+    toast,
+    connectWalletAction,
+    switchNetworkAction,
+    addCandidate,
+    registerVoter,
+    openElection,
+    closeElection,
+    resetElection,
+  } = useElection()
+
   const [candidateName, setCandidateName] = useState('')
   const [voterAddress, setVoterAddress] = useState('')
-  const [isVotingOpen, setIsVotingOpen] = useState(false)
-  const [walletAddress, setWalletAddress] = useState<string | null>(null)
-  const [ownerAddress, setOwnerAddress] = useState<string | null>(null)
-  const [hasMetaMask, setHasMetaMask] = useState(true)
-  const [wrongNetwork, setWrongNetwork] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [connecting, setConnecting] = useState(false)
-  const [txPhase, setTxPhase] = useState<TransactionPhase>('idle')
-  const [toast, setToast] = useState<ToastState | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [localValidationError, setLocalValidationError] = useState<string | null>(null)
+  const [showResetModal, setShowResetModal] = useState(false)
+  const [resetNotice, setResetNotice] = useState<string | null>(null)
 
-  const txPending = txPhase !== 'idle'
+  const rankedCandidates = useMemo(
+    () =>
+      [...candidates].sort(
+        (left, right) => right.voteCount - left.voteCount || left.id - right.id,
+      ),
+    [candidates],
+  )
 
-  const isOwner = useMemo(() => {
-    if (!walletAddress || !ownerAddress) {
-      return false
+  const openDisabledReason = useMemo(() => {
+    if (currentState !== 'PREPARATION') {
+      return 'Election can only be opened from preparation state.'
     }
 
-    return walletAddress.toLowerCase() === ownerAddress.toLowerCase()
-  }, [ownerAddress, walletAddress])
-
-  const refreshAdminData = useCallback(async (addressFromAction?: string | null) => {
-    setLoading(true)
-    setError(null)
-
-    try {
-      const contract = getReadContract()
-      const [owner, votingStatus] = await Promise.all([
-        contract.owner(),
-        contract.votingOpen(),
-      ])
-
-      setOwnerAddress(String(owner))
-      setIsVotingOpen(Boolean(votingStatus))
-
-      const walletInstalled = isMetaMaskInstalled()
-      setHasMetaMask(walletInstalled)
-
-      if (!walletInstalled) {
-        setWalletAddress(null)
-        setWrongNetwork(false)
-        return
-      }
-
-      const activeAddress = addressFromAction ?? (await getConnectedAddress())
-      setWalletAddress(activeAddress)
-      setWrongNetwork(!(await isSepoliaNetwork()))
-    } catch (fetchError) {
-      setError(parseContractError(fetchError))
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    void refreshAdminData()
-  }, [refreshAdminData])
-
-  useEffect(() => {
-    if (!toast) {
-      return undefined
+    if (!hasMetaMask) {
+      return 'Please install MetaMask.'
     }
 
-    const timeoutId = window.setTimeout(() => {
-      setToast(null)
-    }, 3800)
-
-    return () => {
-      window.clearTimeout(timeoutId)
+    if (wrongNetwork) {
+      return 'Please switch to Sepolia.'
     }
-  }, [toast])
 
-  const handleConnectWallet = async () => {
-    setConnecting(true)
-    setError(null)
-
-    try {
-      const address = await connectWallet()
-
-      if (!address) {
-        throw new Error('Conectarea la wallet a esuat.')
-      }
-
-      setToast({ type: 'success', message: 'Wallet conectat cu succes.' })
-      await refreshAdminData(address)
-    } catch (connectError) {
-      const message = parseContractError(connectError)
-      setError(message)
-      setToast({ type: 'error', message })
-    } finally {
-      setConnecting(false)
+    if (txPending) {
+      return 'A transaction is already in progress.'
     }
-  }
 
-  const handleSwitchNetwork = async () => {
-    setConnecting(true)
-    setError(null)
-
-    try {
-      const switched = await checkNetwork()
-      setWrongNetwork(!switched)
-
-      if (switched) {
-        setToast({ type: 'success', message: 'Ai trecut pe reteaua Sepolia.' })
-      }
-    } catch (networkError) {
-      const message = parseContractError(networkError)
-      setError(message)
-      setToast({ type: 'error', message })
-    } finally {
-      setConnecting(false)
+    if (totalCandidates < 2) {
+      return 'Need at least 2 candidates to open election.'
     }
-  }
+
+    if (totalVoters < 1) {
+      return 'Register at least one voter before opening election.'
+    }
+
+    return null
+  }, [currentState, hasMetaMask, wrongNetwork, txPending, totalCandidates, totalVoters])
+
+  const closeDisabledReason = useMemo(() => {
+    if (currentState !== 'OPEN') {
+      return 'Election can only be closed while it is open.'
+    }
+
+    if (!hasMetaMask) {
+      return 'Please install MetaMask.'
+    }
+
+    if (wrongNetwork) {
+      return 'Please switch to Sepolia.'
+    }
+
+    if (txPending) {
+      return 'A transaction is already in progress.'
+    }
+
+    return null
+  }, [currentState, hasMetaMask, wrongNetwork, txPending])
+
+  const resetDisabledReason = useMemo(() => {
+    if (!hasMetaMask) {
+      return 'Please install MetaMask.'
+    }
+
+    if (wrongNetwork) {
+      return 'Please switch to Sepolia.'
+    }
+
+    if (txPending) {
+      return 'A transaction is already in progress.'
+    }
+
+    return null
+  }, [hasMetaMask, wrongNetwork, txPending])
+
+  const txActionLabel =
+    txStep === 'wallet'
+      ? 'Waiting for MetaMask...'
+      : txStep === 'confirming'
+        ? 'Confirming transaction...'
+        : null
 
   const submitAddCandidate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
     const name = candidateName.trim()
     if (!name) {
-      setToast({ type: 'error', message: 'Introdu numele candidatului.' })
+      setLocalValidationError('Candidate name cannot be empty.')
       return
     }
 
-    try {
-      setError(null)
-      setTxPhase('wallet')
-
-      const activeAddress = walletAddress ?? (await connectWallet())
-      if (!activeAddress) {
-        throw new Error('Conecteaza wallet-ul pentru a continua.')
-      }
-
-      setWalletAddress(activeAddress)
-
-      const onSepolia = await checkNetwork()
-      if (!onSepolia) {
-        setWrongNetwork(true)
-        setToast({ type: 'error', message: 'Schimba reteaua pe Sepolia.' })
-        return
-      }
-
-      setWrongNetwork(false)
-
-      const contract = await getContract()
-      const transaction = await contract.addCandidate(name)
-
-      setTxPhase('mining')
-      await transaction.wait()
-
+    setLocalValidationError(null)
+    const success = await addCandidate(name)
+    if (success) {
       setCandidateName('')
-      setToast({ type: 'success', message: 'Candidatul a fost adaugat.' })
-      await refreshAdminData(activeAddress)
-    } catch (submitError) {
-      const message = parseContractError(submitError)
-      setError(message)
-      setToast({ type: 'error', message })
-    } finally {
-      setTxPhase('idle')
     }
   }
 
@@ -190,90 +140,50 @@ export default function AdminPage() {
 
     const address = voterAddress.trim()
     if (!isAddress(address)) {
-      setToast({ type: 'error', message: 'Adresa introdusa nu este valida.' })
+      setLocalValidationError('Please enter a valid wallet address.')
       return
     }
 
-    try {
-      setError(null)
-      setTxPhase('wallet')
-
-      const activeAddress = walletAddress ?? (await connectWallet())
-      if (!activeAddress) {
-        throw new Error('Conecteaza wallet-ul pentru a continua.')
-      }
-
-      setWalletAddress(activeAddress)
-
-      const onSepolia = await checkNetwork()
-      if (!onSepolia) {
-        setWrongNetwork(true)
-        setToast({ type: 'error', message: 'Schimba reteaua pe Sepolia.' })
-        return
-      }
-
-      setWrongNetwork(false)
-
-      const contract = await getContract()
-      const transaction = await contract.registerVoter(address)
-
-      setTxPhase('mining')
-      await transaction.wait()
-
+    setLocalValidationError(null)
+    const success = await registerVoter(address)
+    if (success) {
       setVoterAddress('')
-      setToast({ type: 'success', message: 'Votantul a fost inregistrat.' })
-      await refreshAdminData(activeAddress)
-    } catch (submitError) {
-      const message = parseContractError(submitError)
-      setError(message)
-      setToast({ type: 'error', message })
-    } finally {
-      setTxPhase('idle')
     }
   }
 
-  const toggleVotingState = async () => {
-    const nextState = !isVotingOpen
+  const handleOpenElection = async () => {
+    setLocalValidationError(null)
+    setResetNotice(null)
 
-    try {
-      setError(null)
-      setTxPhase('wallet')
-
-      const activeAddress = walletAddress ?? (await connectWallet())
-      if (!activeAddress) {
-        throw new Error('Conecteaza wallet-ul pentru a continua.')
-      }
-
-      setWalletAddress(activeAddress)
-
-      const onSepolia = await checkNetwork()
-      if (!onSepolia) {
-        setWrongNetwork(true)
-        setToast({ type: 'error', message: 'Schimba reteaua pe Sepolia.' })
-        return
-      }
-
-      setWrongNetwork(false)
-
-      const contract = await getContract()
-      const transaction = await contract.setVotingStatus(nextState)
-
-      setTxPhase('mining')
-      await transaction.wait()
-
-      setIsVotingOpen(nextState)
-      setToast({
-        type: 'success',
-        message: nextState ? 'Votarea a fost deschisa.' : 'Votarea a fost inchisa.',
-      })
-      await refreshAdminData(activeAddress)
-    } catch (toggleError) {
-      const message = parseContractError(toggleError)
-      setError(message)
-      setToast({ type: 'error', message })
-    } finally {
-      setTxPhase('idle')
+    const success = await openElection()
+    if (success) {
+      setResetNotice('Election is now OPEN.')
     }
+  }
+
+  const handleCloseElection = async () => {
+    setLocalValidationError(null)
+    setResetNotice(null)
+
+    const success = await closeElection()
+    if (success) {
+      setResetNotice('Election is now CLOSED.')
+    }
+  }
+
+  const handleConfirmReset = async () => {
+    setLocalValidationError(null)
+
+    const success = await resetElection()
+    if (!success) {
+      return
+    }
+
+    setShowResetModal(false)
+    setResetNotice('Election reset complete. Redirecting to dashboard...')
+    window.setTimeout(() => {
+      navigate('/')
+    }, 1100)
   }
 
   return (
@@ -287,6 +197,29 @@ export default function AdminPage() {
           </p>
         </div>
       </header>
+
+      <section className="panel-card wallet-connect-row">
+        <div>
+          <p className="panel-label">Current State</p>
+          <ElectionStateBadge state={currentState} />
+        </div>
+        <div>
+          <p className="panel-label">Connected Wallet</p>
+          <p className="mono-value vote-selection-display">
+            {connectedAddress ? shortenAddress(connectedAddress) : 'Not connected'}
+          </p>
+        </div>
+        {!connectedAddress && hasMetaMask ? (
+          <button
+            className="terminal-button"
+            type="button"
+            onClick={() => void connectWalletAction()}
+            disabled={txPending}
+          >
+            Connect Wallet
+          </button>
+        ) : null}
+      </section>
 
       {!hasMetaMask ? (
         <div className="panel-card tx-alert tx-alert-error">
@@ -303,8 +236,8 @@ export default function AdminPage() {
             <button
               className="terminal-button"
               type="button"
-              onClick={handleSwitchNetwork}
-              disabled={connecting || txPending}
+              onClick={() => void switchNetworkAction()}
+              disabled={txPending}
             >
               Switch to Sepolia
             </button>
@@ -321,6 +254,12 @@ export default function AdminPage() {
         </div>
       ) : null}
 
+      {resetNotice ? (
+        <div className="panel-card tx-toast tx-toast-success" role="status">
+          <p className="panel-subtle">{resetNotice}</p>
+        </div>
+      ) : null}
+
       {error ? (
         <div className="panel-card access-restricted">
           <p className="panel-label">Admin Error</p>
@@ -328,145 +267,241 @@ export default function AdminPage() {
         </div>
       ) : null}
 
-      <section className="panel-card wallet-connect-row">
-        <div>
-          <p className="panel-label">Connected Wallet</p>
-          <p className="mono-value vote-selection-display">
-            {walletAddress ? shortenAddress(walletAddress) : 'Not connected'}
-          </p>
-          <p className="panel-subtle">
-            Contract owner: {ownerAddress ? shortenAddress(ownerAddress) : loading ? 'Loading...' : 'N/A'}
-          </p>
+      {localValidationError ? (
+        <div className="panel-card tx-alert tx-alert-error" role="alert">
+          <p className="panel-subtle">{localValidationError}</p>
         </div>
-
-        {!walletAddress && hasMetaMask ? (
-          <button
-            className="terminal-button"
-            type="button"
-            onClick={handleConnectWallet}
-            disabled={connecting || txPending}
-          >
-            {connecting ? 'Connecting...' : 'Connect Wallet'}
-          </button>
-        ) : null}
-      </section>
+      ) : null}
 
       {txPending ? (
         <div className="panel-card tx-pending-row" role="status" aria-live="polite">
           <span className="tx-spinner" aria-hidden="true" />
           <p className="panel-subtle">
-            {txPhase === 'wallet'
-              ? 'Confirm transaction in MetaMask...'
+            {txStep === 'wallet'
+              ? 'Waiting for MetaMask...'
               : 'Transaction pending on Sepolia. Waiting for confirmation...'}
           </p>
         </div>
       ) : null}
 
       <AdminGuard isOwner={isOwner}>
-        <div className="admin-grid">
-          <form className="panel-card admin-card" onSubmit={(event) => void submitAddCandidate(event)}>
-            <div className="admin-card-heading">
-              <h2>Add Candidate</h2>
-              {!isOwner ? (
-                <span className="lock-pill" aria-hidden="true">
-                  &#128274; LOCKED
-                </span>
+        {currentState === 'PREPARATION' ? (
+          <div className="admin-grid">
+            <form className="panel-card admin-card" onSubmit={(event) => void submitAddCandidate(event)}>
+              <div className="admin-card-heading">
+                <h2>Add Candidate</h2>
+              </div>
+
+              <label className="field-label" htmlFor="candidate-name">
+                Candidate Name
+              </label>
+              <input
+                id="candidate-name"
+                className="field-input"
+                value={candidateName}
+                onChange={(event) => setCandidateName(event.target.value)}
+                placeholder="Enter candidate name"
+                disabled={txPending || loading}
+              />
+
+              <button
+                className="terminal-button"
+                type="submit"
+                disabled={txPending || loading || wrongNetwork || !hasMetaMask}
+              >
+                {txActionLabel ?? 'Add Candidate'}
+              </button>
+            </form>
+
+            <form
+              className="panel-card admin-card"
+              onSubmit={(event) => void submitRegisterVoter(event)}
+            >
+              <div className="admin-card-heading">
+                <h2>Register Voter</h2>
+              </div>
+
+              <label className="field-label" htmlFor="voter-address">
+                Wallet Address
+              </label>
+              <input
+                id="voter-address"
+                className="field-input mono-value"
+                value={voterAddress}
+                onChange={(event) => setVoterAddress(event.target.value)}
+                placeholder="0x..."
+                disabled={txPending || loading}
+              />
+
+              <button
+                className="terminal-button"
+                type="submit"
+                disabled={txPending || loading || wrongNetwork || !hasMetaMask}
+              >
+                {txActionLabel ?? 'Register Voter'}
+              </button>
+            </form>
+
+            <section className="panel-card admin-card">
+              <div className="admin-card-heading">
+                <h2>Preparation Controls</h2>
+              </div>
+              <p className="panel-subtle">Candidates: {totalCandidates}</p>
+              <p className="panel-subtle">Registered voters: {totalVoters}</p>
+              <button
+                className="terminal-button"
+                type="button"
+                disabled={Boolean(openDisabledReason)}
+                title={openDisabledReason ?? undefined}
+                onClick={() => void handleOpenElection()}
+              >
+                {txActionLabel ?? 'Open Election'}
+              </button>
+              {openDisabledReason ? (
+                <p className="panel-subtle tx-copy-warning">{openDisabledReason}</p>
               ) : null}
+            </section>
+          </div>
+        ) : null}
+
+        {currentState === 'OPEN' ? (
+          <section className="panel-card admin-state-panel">
+            <div className="section-heading-row">
+              <h2>Live Election Controls</h2>
+              <ElectionStateBadge state={currentState} compact />
             </div>
 
-            <label className="field-label" htmlFor="candidate-name">
-              Candidate Name
-            </label>
-            <input
-              id="candidate-name"
-              className="field-input"
-              value={candidateName}
-              onChange={(event) => setCandidateName(event.target.value)}
-              placeholder="Enter candidate name"
-              disabled={!isOwner || txPending || loading}
-            />
-
-            <button
-              className="terminal-button"
-              type="submit"
-              disabled={!isOwner || txPending || loading || wrongNetwork || !hasMetaMask}
-            >
-              {!isOwner ? (
-                <span className="inline-lock" aria-hidden="true">
-                  &#128274;
-                </span>
-              ) : null}
-              Add Candidate
-            </button>
-          </form>
-
-          <form
-            className="panel-card admin-card"
-            onSubmit={(event) => void submitRegisterVoter(event)}
-          >
-            <div className="admin-card-heading">
-              <h2>Register Voter</h2>
-              {!isOwner ? (
-                <span className="lock-pill" aria-hidden="true">
-                  &#128274; LOCKED
-                </span>
-              ) : null}
+            <div className="admin-inline-stats">
+              <article className="panel-card stat-card">
+                <p className="panel-label">Candidates</p>
+                <p className="mono-value">{totalCandidates}</p>
+              </article>
+              <article className="panel-card stat-card">
+                <p className="panel-label">Votes Cast</p>
+                <p className="mono-value">{totalVotes}</p>
+              </article>
+              <article className="panel-card stat-card">
+                <p className="panel-label">Registered Voters</p>
+                <p className="mono-value">{totalVoters}</p>
+              </article>
             </div>
 
-            <label className="field-label" htmlFor="voter-address">
-              Wallet Address
-            </label>
-            <input
-              id="voter-address"
-              className="field-input mono-value"
-              value={voterAddress}
-              onChange={(event) => setVoterAddress(event.target.value)}
-              placeholder="0x..."
-              disabled={!isOwner || txPending || loading}
-            />
-
-            <button
-              className="terminal-button"
-              type="submit"
-              disabled={!isOwner || txPending || loading || wrongNetwork || !hasMetaMask}
-            >
-              {!isOwner ? (
-                <span className="inline-lock" aria-hidden="true">
-                  &#128274;
-                </span>
-              ) : null}
-              Register Voter
-            </button>
-          </form>
-
-          <section className="panel-card admin-card">
-            <div className="admin-card-heading">
-              <h2>Voting State</h2>
-              {!isOwner ? (
-                <span className="lock-pill" aria-hidden="true">
-                  &#128274; LOCKED
-                </span>
-              ) : null}
+            <div className="admin-actions-row">
+              <button
+                className="terminal-button"
+                type="button"
+                disabled={Boolean(closeDisabledReason)}
+                title={closeDisabledReason ?? undefined}
+                onClick={() => void handleCloseElection()}
+              >
+                {txActionLabel ?? 'Close Election'}
+              </button>
+              <button
+                className="terminal-button terminal-button-danger"
+                type="button"
+                disabled={Boolean(resetDisabledReason)}
+                title={resetDisabledReason ?? undefined}
+                onClick={() => setShowResetModal(true)}
+              >
+                {txActionLabel ?? 'Reset Election'}
+              </button>
             </div>
-
-            <VoteStatus isOpen={isVotingOpen} />
-
-            <button
-              className="terminal-button"
-              type="button"
-              disabled={!isOwner || txPending || loading || wrongNetwork || !hasMetaMask}
-              onClick={() => void toggleVotingState()}
-            >
-              {!isOwner ? (
-                <span className="inline-lock" aria-hidden="true">
-                  &#128274;
-                </span>
-              ) : null}
-              {isVotingOpen ? 'Close Voting' : 'Open Voting'}
-            </button>
           </section>
-        </div>
+        ) : null}
+
+        {currentState === 'CLOSED' ? (
+          <section className="panel-card admin-state-panel">
+            <div className="section-heading-row">
+              <h2>Final Results</h2>
+              <ElectionStateBadge state={currentState} compact />
+            </div>
+
+            {winner ? (
+              <div className="panel-card winner-summary-card">
+                <p className="panel-label">Election Winner</p>
+                <p className="mono-value winner-summary-name">{winner.name}</p>
+                <p className="panel-subtle">{winner.voteCount} votes</p>
+              </div>
+            ) : (
+              <EmptyState
+                title="Winner not available"
+                description="No winner data returned by the contract."
+              />
+            )}
+
+            {rankedCandidates.length > 0 ? (
+              <div className="table-wrap">
+                <table className="results-table">
+                  <thead>
+                    <tr>
+                      <th>Rank</th>
+                      <th>Candidate</th>
+                      <th>Votes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rankedCandidates.map((candidate, index) => {
+                      const isWinnerRow =
+                        winner !== null &&
+                        winner.name === candidate.name &&
+                        winner.voteCount === candidate.voteCount
+
+                      return (
+                        <tr key={candidate.id} className={isWinnerRow ? 'results-row-winner' : ''}>
+                          <td className="mono-value">#{index + 1}</td>
+                          <td>{candidate.name}</td>
+                          <td className="mono-value">{candidate.voteCount}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+
+            <div className="admin-actions-row">
+              <button
+                className="terminal-button terminal-button-danger"
+                type="button"
+                disabled={Boolean(resetDisabledReason)}
+                title={resetDisabledReason ?? undefined}
+                onClick={() => setShowResetModal(true)}
+              >
+                {txActionLabel ?? 'Reset Election'}
+              </button>
+            </div>
+          </section>
+        ) : null}
       </AdminGuard>
+
+      {showResetModal ? (
+        <div className="modal-backdrop" role="presentation">
+          <div className="reset-modal" role="dialog" aria-modal="true" aria-labelledby="reset-modal-title">
+            <h2 id="reset-modal-title">Reset Election</h2>
+            <p className="panel-subtle">
+              Are you sure? This will delete all candidates and voters.
+            </p>
+            <div className="modal-action-row">
+              <button
+                className="terminal-button"
+                type="button"
+                onClick={() => setShowResetModal(false)}
+                disabled={txPending}
+              >
+                Cancel
+              </button>
+              <button
+                className="terminal-button terminal-button-danger"
+                type="button"
+                onClick={() => void handleConfirmReset()}
+                disabled={txPending}
+              >
+                {txActionLabel ?? 'Confirm Reset'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   )
 }
