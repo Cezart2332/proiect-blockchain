@@ -68,6 +68,23 @@
   font-size: 0.74rem;
 }
 
+.top-wallet-button {
+  border: 1px solid var(--accent);
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--text-primary);
+  min-height: 2rem;
+  padding: 0 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.68rem;
+  cursor: pointer;
+}
+
+.top-wallet-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .vote-status {
   display: inline-flex;
   align-items: center;
@@ -221,6 +238,71 @@
 .panel-subtle {
   color: var(--text-muted);
   font-size: 0.74rem;
+}
+
+.wallet-connect-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.tx-alert {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.tx-alert-warning {
+  border-color: rgba(245, 158, 11, 0.62);
+}
+
+.tx-alert-error {
+  border-color: rgba(239, 68, 68, 0.62);
+}
+
+.tx-alert-action-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.tx-toast {
+  padding-block: 0.62rem;
+}
+
+.tx-toast-success {
+  border-color: rgba(74, 222, 128, 0.62);
+  background: rgba(74, 222, 128, 0.1);
+}
+
+.tx-toast-error {
+  border-color: rgba(239, 68, 68, 0.62);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.tx-pending-row {
+  display: flex;
+  align-items: center;
+  gap: 0.62rem;
+}
+
+.tx-spinner {
+  width: 0.9rem;
+  height: 0.9rem;
+  border: 2px solid rgba(245, 158, 11, 0.3);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+  flex-shrink: 0;
+}
+
+.tx-copy-warning {
+  color: #fcd34d;
+}
+
+.tx-copy-error {
+  color: #fca5a5;
 }
 
 .mono-value {
@@ -720,6 +802,15 @@
   }
 }
 
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (max-width: 1080px) {
   .workspace-shell {
     grid-template-columns: 1fr;
@@ -761,6 +852,12 @@
   }
 
   .section-heading-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .wallet-connect-row,
+  .tx-alert-action-row {
     align-items: flex-start;
     flex-direction: column;
   }
