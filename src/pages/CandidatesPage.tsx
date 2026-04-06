@@ -1,29 +1,58 @@
 import { useEffect, useMemo, useState } from 'react'
 import EmptyState from '../components/EmptyState.tsx'
 import SkeletonList from '../components/SkeletonList.tsx'
-import { candidates } from '../mockData.js'
+import { fetchCandidates, getReadContract, parseContractError } from '../hooks/useContract.js'
+import type { Candidate } from '../types'
 
 export default function CandidatesPage() {
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [candidates, setCandidates] = useState<Candidate[]>([])
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      setLoading(false)
-    }, 900)
+    let mounted = true
+
+    const loadCandidates = async () => {
+      setLoading(true)
+      setError(null)
+
+      try {
+        const contract = getReadContract()
+        const fetchedCandidates = await fetchCandidates(contract)
+
+        if (!mounted) {
+          return
+        }
+
+        setCandidates(fetchedCandidates)
+      } catch (fetchError) {
+        if (!mounted) {
+          return
+        }
+
+        setError(parseContractError(fetchError))
+      } finally {
+        if (mounted) {
+          setLoading(false)
+        }
+      }
+    }
+
+    void loadCandidates()
 
     return () => {
-      window.clearTimeout(timeoutId)
+      mounted = false
     }
   }, [])
 
   const totalVotes = useMemo(
     () => candidates.reduce((total, candidate) => total + candidate.voteCount, 0),
-    [],
+    [candidates],
   )
 
   const leadingVotes = useMemo(
     () => candidates.reduce((max, candidate) => Math.max(max, candidate.voteCount), 0),
-    [],
+    [candidates],
   )
 
   return (
@@ -39,6 +68,13 @@ export default function CandidatesPage() {
       </header>
 
       <section className="panel-card">
+        {error ? (
+          <div className="panel-card access-restricted">
+            <p className="panel-label">Contract Read Error</p>
+            <p className="panel-subtle">{error}</p>
+          </div>
+        ) : null}
+
         {loading ? (
           <SkeletonList columns={5} rows={5} />
         ) : candidates.length === 0 ? (

@@ -19,10 +19,6 @@ export default function AdminGuard({ isOwner, children }: AdminGuardProps) {
           Only the contract owner can manage candidates, voter registration, or voting state.
         </p>
       </div>
-
-      <fieldset className="restricted-fieldset" disabled>
-        {children}
-      </fieldset>
     </div>
   )
 }
