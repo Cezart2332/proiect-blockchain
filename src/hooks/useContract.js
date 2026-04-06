@@ -4,8 +4,28 @@ import { CONTRACT_ABI, CONTRACT_ADDRESS } from '../contract.js'
 export const SEPOLIA_CHAIN_ID = 11155111
 export const SEPOLIA_CHAIN_HEX = '0xaa36a7'
 
-const FALLBACK_SEPOLIA_RPC_URL =
-  import.meta.env.VITE_SEPOLIA_RPC_URL ?? 'https://ethereum-sepolia-rpc.publicnode.com'
+const DEFAULT_SEPOLIA_RPC_URL = 'https://ethereum-sepolia-rpc.publicnode.com'
+
+function resolveSepoliaRpcUrl() {
+  const rawRpcUrl = String(import.meta.env.VITE_SEPOLIA_RPC_URL ?? '').trim()
+
+  if (!rawRpcUrl) {
+    return DEFAULT_SEPOLIA_RPC_URL
+  }
+
+  try {
+    const parsedUrl = new URL(rawRpcUrl)
+    if (parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:') {
+      return rawRpcUrl
+    }
+  } catch {
+    // Fall back to the default public endpoint when the configured URL is malformed.
+  }
+
+  return DEFAULT_SEPOLIA_RPC_URL
+}
+
+const FALLBACK_SEPOLIA_RPC_URL = resolveSepoliaRpcUrl()
 
 function requireContractConfig() {
   if (!CONTRACT_ADDRESS) {
