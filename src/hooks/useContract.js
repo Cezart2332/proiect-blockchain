@@ -9,11 +9,11 @@ const FALLBACK_SEPOLIA_RPC_URL =
 
 function requireContractConfig() {
   if (!CONTRACT_ADDRESS) {
-    throw new Error('VITE_CONTRACT_ADDRESS nu este setat in .env')
+    throw new Error('VITE_CONTRACT_ADDRESS is missing from .env')
   }
 
   if (!CONTRACT_ABI) {
-    throw new Error('ABI-ul contractului nu poate fi incarcat')
+    throw new Error('Contract ABI could not be loaded')
   }
 }
 
@@ -48,7 +48,7 @@ export async function connectWallet() {
 
   const address = accounts?.[0]
   if (!address) {
-    throw new Error('Nu s-a putut obtine adresa wallet-ului.')
+    throw new Error('Unable to resolve wallet address.')
   }
 
   return address
@@ -156,32 +156,38 @@ export async function fetchCandidates(contract) {
 
 export function parseContractError(error) {
   if (error?.code === 4001 || error?.code === 'ACTION_REJECTED') {
-    return 'Tranzactia a fost anulata in MetaMask.'
+    return 'Transaction was rejected in MetaMask.'
   }
 
   const rawMessage =
     error?.reason ??
     error?.shortMessage ??
     error?.data?.message ??
+    error?.error?.message ??
     error?.message ??
-    'A aparut o eroare necunoscuta.'
+    'An unknown error occurred.'
 
-  const cleanedMessage = String(rawMessage)
+  const cleanedMessage = String(rawMessage).trim()
 
   const knownErrors = [
-    ['Ai votat deja', 'Ai votat deja.'],
-    ['Nu esti inregistrat ca votant', 'Nu esti inregistrat ca votant.'],
-    ['Votarea nu este deschisa', 'Votarea nu este deschisa.'],
-    ['Candidat invalid', 'Candidatul selectat este invalid.'],
-    ['Candidat inexistent', 'Candidatul selectat nu exista.'],
-    ['Doar owner-ul poate face asta', 'Doar owner-ul poate efectua aceasta actiune.'],
-    ['Adresa invalida', 'Adresa introdusa nu este valida.'],
-    ['Votantul e deja inregistrat', 'Votantul este deja inregistrat.'],
-    ['Nu poti adauga candidati in timpul votului', 'Nu poti adauga candidati in timpul votului.'],
-    ['Nu exista candidati', 'Nu exista candidati inregistrati.'],
-    ['user rejected', 'Tranzactia a fost anulata in MetaMask.'],
-    ['User denied', 'Tranzactia a fost anulata in MetaMask.'],
-    ['insufficient funds', 'Fonduri insuficiente pentru taxa de tranzactie.'],
+    ['Doar owner-ul poate face asta', 'Only the contract owner can do this'],
+    [
+      'Actiune invalida in starea curenta',
+      'This action is not allowed in the current election state',
+    ],
+    ['Ai votat deja', 'You have already voted'],
+    ['Nu esti inregistrat ca votant', 'You are not registered to vote'],
+    ['Trebuie cel putin 2 candidati', 'Add at least 2 candidates before opening the election'],
+    [
+      'Trebuie cel putin un votant inregistrat',
+      'Register at least one voter before opening the election',
+    ],
+    ['Votant deja inregistrat', 'This address is already registered'],
+    ['Please switch to Sepolia', 'Please switch to Sepolia'],
+    ['Please install MetaMask', 'Please install MetaMask'],
+    ['user rejected', 'Transaction was rejected in MetaMask.'],
+    ['User denied', 'Transaction was rejected in MetaMask.'],
+    ['insufficient funds', 'Insufficient funds for gas fees.'],
   ]
 
   for (const [needle, message] of knownErrors) {
@@ -192,7 +198,12 @@ export function parseContractError(error) {
 
   const revertMatch = cleanedMessage.match(/execution reverted(?: with reason string)?[:\s]*"?([^"\n]+)"?/i)
   if (revertMatch?.[1]) {
-    return revertMatch[1]
+    return revertMatch[1].trim()
+  }
+
+  const quotedReason = cleanedMessage.match(/"([^"]+)"/)
+  if (quotedReason?.[1]) {
+    return quotedReason[1].trim()
   }
 
   return cleanedMessage

@@ -1,238 +1,54 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import CandidateCard from '../components/CandidateCard.tsx'
+import ElectionStateBadge from '../components/ElectionStateBadge.tsx'
 import EmptyState from '../components/EmptyState.tsx'
 import SkeletonCards from '../components/SkeletonCards.tsx'
-import VoteStatus from '../components/VoteStatus.tsx'
-import {
-  checkNetwork,
-  connectWallet,
-  fetchCandidates,
-  getConnectedAddress,
-  getContract,
-  getReadContract,
-  isMetaMaskInstalled,
-  isSepoliaNetwork,
-  parseContractError,
-} from '../hooks/useContract.js'
-import type { Candidate } from '../types'
+import { useElection } from '../context/ElectionContext'
 import { shortenAddress } from '../utils/format'
 
-interface ToastState {
-  type: 'success' | 'error'
-  message: string
-}
-
-type TransactionPhase = 'idle' | 'wallet' | 'mining'
-
 export default function VotePage() {
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [candidates, setCandidates] = useState<Candidate[]>([])
+  const {
+    loading,
+    error,
+    currentState,
+    candidates,
+    connectedAddress,
+    hasMetaMask,
+    wrongNetwork,
+    isRegistered,
+    hasVoted,
+    txStep,
+    txPending,
+    toast,
+    connectWalletAction,
+    switchNetworkAction,
+    vote,
+  } = useElection()
+
   const [selectedCandidateId, setSelectedCandidateId] = useState<number | null>(null)
-  const [walletAddress, setWalletAddress] = useState<string | null>(null)
-  const [hasVoted, setHasVoted] = useState(false)
-  const [isRegistered, setIsRegistered] = useState(true)
-  const [votingOpen, setVotingOpen] = useState(false)
-  const [hasMetaMask, setHasMetaMask] = useState(true)
-  const [wrongNetwork, setWrongNetwork] = useState(false)
-  const [txPhase, setTxPhase] = useState<TransactionPhase>('idle')
-  const [connecting, setConnecting] = useState(false)
-  const [toast, setToast] = useState<ToastState | null>(null)
-
-  const txPending = txPhase !== 'idle'
-
-  const refreshVotingData = useCallback(async (addressFromAction?: string | null) => {
-    setLoading(true)
-    setError(null)
-
-    try {
-      const contract = getReadContract()
-      const [votingState, fetchedCandidates] = await Promise.all([
-        contract.votingOpen(),
-        fetchCandidates(contract),
-      ])
-
-      setVotingOpen(Boolean(votingState))
-      setCandidates(fetchedCandidates)
-
-      const walletInstalled = isMetaMaskInstalled()
-      setHasMetaMask(walletInstalled)
-
-      if (!walletInstalled) {
-        setWalletAddress(null)
-        setWrongNetwork(false)
-        setHasVoted(false)
-        setIsRegistered(true)
-        return
-      }
-
-      const activeAddress = addressFromAction ?? (await getConnectedAddress())
-      setWalletAddress(activeAddress)
-      setWrongNetwork(!(await isSepoliaNetwork()))
-
-      if (!activeAddress) {
-        setHasVoted(false)
-        setIsRegistered(true)
-        return
-      }
-
-      const [votedState, registeredState] = await Promise.all([
-        contract.hasVoted(activeAddress),
-        contract.registeredVoters(activeAddress),
-      ])
-
-      setHasVoted(Boolean(votedState))
-      setIsRegistered(Boolean(registeredState))
-    } catch (fetchError) {
-      setError(parseContractError(fetchError))
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    void refreshVotingData()
-  }, [refreshVotingData])
-
-  useEffect(() => {
-    if (!toast) {
-      return undefined
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      setToast(null)
-    }, 3800)
-
-    return () => {
-      window.clearTimeout(timeoutId)
-    }
-  }, [toast])
 
   const selectedCandidate = useMemo(
     () => candidates.find((candidate) => candidate.id === selectedCandidateId) ?? null,
     [candidates, selectedCandidateId],
   )
 
-  const votingLocked =
-    hasVoted ||
-    !votingOpen ||
-    !isRegistered ||
-    txPending ||
-    !walletAddress ||
-    wrongNetwork
-
-  const canCastVote = selectedCandidate !== null && !votingLocked
-
-  const handleConnectWallet = async () => {
-    setConnecting(true)
-    setError(null)
-
-    try {
-      const address = await connectWallet()
-
-      if (!address) {
-        throw new Error('Conectarea la wallet a esuat.')
-      }
-
-      setToast({ type: 'success', message: 'Wallet conectat cu succes.' })
-      await refreshVotingData(address)
-    } catch (connectError) {
-      const message = parseContractError(connectError)
-      setError(message)
-      setToast({ type: 'error', message })
-    } finally {
-      setConnecting(false)
-    }
-  }
-
-  const handleSwitchNetwork = async () => {
-    setConnecting(true)
-    setError(null)
-
-    try {
-      const switched = await checkNetwork()
-      setWrongNetwork(!switched)
-
-      if (switched) {
-        setToast({ type: 'success', message: 'Ai trecut pe reteaua Sepolia.' })
-      }
-    } catch (networkError) {
-      const message = parseContractError(networkError)
-      setError(message)
-      setToast({ type: 'error', message })
-    } finally {
-      setConnecting(false)
-    }
-  }
+  const canCastVote =
+    currentState === 'OPEN' &&
+    selectedCandidate !== null &&
+    Boolean(connectedAddress) &&
+    isRegistered &&
+    !hasVoted &&
+    !wrongNetwork &&
+    !txPending
 
   const castVote = async () => {
-    if (!canCastVote) {
+    if (!selectedCandidate) {
       return
     }
 
-    const candidateToVote = selectedCandidate
-    if (!candidateToVote) {
-      return
-    }
-
-    try {
-      setError(null)
-      setTxPhase('wallet')
-
-      let activeAddress = walletAddress
-
-      if (!activeAddress) {
-        activeAddress = await connectWallet()
-        setWalletAddress(activeAddress)
-      }
-
-      if (!activeAddress) {
-        throw new Error('Conecteaza wallet-ul pentru a putea vota.')
-      }
-
-      const onSepolia = await checkNetwork()
-
-      if (!onSepolia) {
-        setWrongNetwork(true)
-        setToast({ type: 'error', message: 'Schimba reteaua pe Sepolia.' })
-        return
-      }
-
-      setWrongNetwork(false)
-
-      const readContract = getReadContract()
-      const [votedState, registeredState] = await Promise.all([
-        readContract.hasVoted(activeAddress),
-        readContract.registeredVoters(activeAddress),
-      ])
-
-      if (votedState) {
-        setHasVoted(true)
-        setToast({ type: 'error', message: 'Ai votat deja.' })
-        return
-      }
-
-      if (!registeredState) {
-        setIsRegistered(false)
-        setToast({ type: 'error', message: 'Nu esti inregistrat ca votant.' })
-        return
-      }
-
-      const contract = await getContract()
-      const transaction = await contract.vote(candidateToVote.id)
-
-      setTxPhase('mining')
-      await transaction.wait()
-
-      setToast({ type: 'success', message: 'Votul a fost inregistrat cu succes.' })
-      await refreshVotingData(activeAddress)
-      setHasVoted(true)
-    } catch (voteError) {
-      const message = parseContractError(voteError)
-      setError(message)
-      setToast({ type: 'error', message })
-    } finally {
-      setTxPhase('idle')
+    const success = await vote(selectedCandidate.id)
+    if (success) {
+      setSelectedCandidateId(null)
     }
   }
 
@@ -249,6 +65,19 @@ export default function VotePage() {
         </div>
       </header>
 
+      <section className="panel-card wallet-connect-row">
+        <div>
+          <p className="panel-label">Current State</p>
+          <ElectionStateBadge state={currentState} />
+        </div>
+        <div>
+          <p className="panel-label">Wallet</p>
+          <p className="mono-value vote-selection-display">
+            {connectedAddress ? shortenAddress(connectedAddress) : 'Not connected'}
+          </p>
+        </div>
+      </section>
+
       {!hasMetaMask ? (
         <div className="panel-card tx-alert tx-alert-error">
           <p className="panel-label">Wallet Required</p>
@@ -264,8 +93,8 @@ export default function VotePage() {
             <button
               className="terminal-button"
               type="button"
-              onClick={handleSwitchNetwork}
-              disabled={connecting || txPending}
+              onClick={() => void switchNetworkAction()}
+              disabled={txPending}
             >
               Switch to Sepolia
             </button>
@@ -289,97 +118,130 @@ export default function VotePage() {
         </div>
       ) : null}
 
-      <section className="panel-card vote-page-panel">
-        <div className="section-heading-row">
-          <h2>Available Candidates</h2>
-          <VoteStatus isOpen={votingOpen} />
-        </div>
+      {currentState === 'PREPARATION' ? (
+        <section className="panel-card">
+          <EmptyState
+            title="Election not started yet"
+            description="Voting will become available after the owner opens the election."
+          />
+        </section>
+      ) : null}
 
-        <div className="wallet-connect-row">
-          <div>
-            <p className="panel-label">Wallet</p>
-            <p className="mono-value vote-selection-display">
-              {walletAddress ? shortenAddress(walletAddress) : 'Not connected'}
-            </p>
+      {currentState === 'CLOSED' ? (
+        <section className="panel-card">
+          <EmptyState
+            title="Election has ended"
+            description="Voting is closed and no additional ballots can be submitted."
+          />
+        </section>
+      ) : null}
+
+      {currentState === 'OPEN' ? (
+        <section className="panel-card vote-page-panel">
+          <div className="section-heading-row">
+            <h2>Available Candidates</h2>
+            <ElectionStateBadge state={currentState} compact />
           </div>
 
-          {!walletAddress && hasMetaMask ? (
+          {!connectedAddress && hasMetaMask ? (
+            <div className="panel-card tx-alert tx-alert-warning">
+              <p className="panel-subtle">Connect your wallet to continue.</p>
+              <button
+                className="terminal-button"
+                type="button"
+                onClick={() => void connectWalletAction()}
+                disabled={txPending}
+              >
+                Connect Wallet
+              </button>
+            </div>
+          ) : null}
+
+          {connectedAddress && !isRegistered ? (
+            <div className="panel-card tx-alert tx-alert-error">
+              <p className="panel-subtle">You are not registered to vote.</p>
+            </div>
+          ) : null}
+
+          {connectedAddress && hasVoted ? (
+            <div className="panel-card vote-locked-card">
+              <span className="candidate-check-icon" aria-hidden="true">
+                &#10003;
+              </span>
+              <p className="panel-subtle">You have already voted</p>
+            </div>
+          ) : null}
+
+          {loading ? (
+            <SkeletonCards className="candidate-grid" count={Math.max(candidates.length, 3)} />
+          ) : candidates.length === 0 ? (
+            <EmptyState
+              title="No candidates registered"
+              description="Add candidates from the admin page before opening voting."
+            />
+          ) : (
+            <div className="candidate-grid">
+              {candidates.map((candidate) => (
+                <CandidateCard
+                  key={candidate.id}
+                  candidate={candidate}
+                  isSelected={selectedCandidateId === candidate.id}
+                  isLocked={
+                    txPending ||
+                    hasVoted ||
+                    !isRegistered ||
+                    wrongNetwork ||
+                    !connectedAddress
+                  }
+                  showCheckmark={false}
+                  onSelect={(id) => setSelectedCandidateId(id)}
+                />
+              ))}
+            </div>
+          )}
+
+          {txPending ? (
+            <div className="tx-pending-row" role="status" aria-live="polite">
+              <span className="tx-spinner" aria-hidden="true" />
+              <p className="panel-subtle">
+                {txStep === 'wallet'
+                  ? 'Waiting for MetaMask...'
+                  : 'Transaction pending on Sepolia. Waiting for confirmation...'}
+              </p>
+            </div>
+          ) : null}
+
+          <div className="vote-action-row">
+            <div>
+              <p className="panel-label">Selected candidate</p>
+              <p className="mono-value vote-selection-display">
+                {selectedCandidate ? `${selectedCandidate.name} (#${selectedCandidate.id})` : 'None'}
+              </p>
+            </div>
+
             <button
               className="terminal-button"
               type="button"
-              onClick={handleConnectWallet}
-              disabled={connecting || txPending}
+              disabled={!canCastVote}
+              onClick={() => void castVote()}
             >
-              {connecting ? 'Connecting...' : 'Connect Wallet'}
+              {txStep === 'wallet' ? (
+                <span className="inline-button-content">
+                  <span className="tx-spinner inline-spinner" aria-hidden="true" />
+                  Waiting for MetaMask...
+                </span>
+              ) : txStep === 'confirming' ? (
+                <span className="inline-button-content">
+                  <span className="tx-spinner inline-spinner" aria-hidden="true" />
+                  Confirming transaction...
+                </span>
+              ) : (
+                'Cast Vote'
+              )}
             </button>
-          ) : null}
-        </div>
-
-        {walletAddress && !isRegistered ? (
-          <p className="panel-subtle tx-copy-error">Nu esti inregistrat ca votant.</p>
-        ) : null}
-
-        {walletAddress && hasVoted ? (
-          <p className="panel-subtle tx-copy-warning">Ai votat deja.</p>
-        ) : null}
-
-        {loading ? (
-          <SkeletonCards className="candidate-grid" count={Math.max(candidates.length, 3)} />
-        ) : candidates.length === 0 ? (
-          <EmptyState
-            title="No candidates registered"
-            description="Add candidates from the admin page before opening voting."
-          />
-        ) : (
-          <div className="candidate-grid">
-            {candidates.map((candidate) => (
-              <CandidateCard
-                key={candidate.id}
-                candidate={candidate}
-                isSelected={selectedCandidateId === candidate.id}
-                isLocked={votingLocked}
-                showCheckmark={hasVoted && selectedCandidateId === candidate.id}
-                onSelect={(id) => setSelectedCandidateId(id)}
-              />
-            ))}
           </div>
-        )}
-
-        {txPending ? (
-          <div className="tx-pending-row" role="status" aria-live="polite">
-            <span className="tx-spinner" aria-hidden="true" />
-            <p className="panel-subtle">
-              {txPhase === 'wallet'
-                ? 'Confirm transaction in MetaMask...'
-                : 'Transaction pending on Sepolia. Waiting for confirmation...'}
-            </p>
-          </div>
-        ) : null}
-
-        <div className="vote-action-row">
-          <div>
-            <p className="panel-label">Selected candidate</p>
-            <p className="mono-value vote-selection-display">
-              {selectedCandidate ? `${selectedCandidate.name} (#${selectedCandidate.id})` : 'None'}
-            </p>
-          </div>
-
-          <button
-            className="terminal-button"
-            type="button"
-            disabled={!canCastVote}
-            onClick={() => void castVote()}
-          >
-            {hasVoted
-              ? 'Already Voted'
-              : txPhase === 'wallet'
-                ? 'Confirm in MetaMask...'
-                : txPhase === 'mining'
-                  ? 'Transaction Pending...'
-                  : 'Cast Vote'}
-          </button>
-        </div>
-      </section>
+        </section>
+      ) : null}
     </section>
   )
 }
